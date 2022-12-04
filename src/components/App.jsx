@@ -1,61 +1,63 @@
 import { fetchImages } from 'helpers/pixabayApi';
-import React, { Component } from 'react';
+
 import { ImageGallery } from './ImageGallery/ImageGallery';
 import { LoadMore } from './LoadMore/LoadMore';
 import { Loader } from './Loader/Loader';
-import { SearchBar } from './Searchbar/SearchBar';
+import SearchBar from './Searchbar/SearchBar';
 
-export class App extends Component {
-  state = {
-    images: [],
-    query: '',
-    page: 1,
-    totalHits: 0,
-    isLoading: false,
+import { useState, useEffect } from 'react';
+
+export default function App() {
+  const [images, setImages] = useState([]);
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalHits, setTotalHits] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmitForm = query => {
+    console.log(query);
+    setQuery(query);
+    setPage(1);
   };
 
-  handleSubmitForm = query => {
-    this.setState({ query, page: 1 });
+  const handleLoadMore = () => {
+    setPage(prevState => prevState + 1);
   };
 
-  handleLoadMore = () => {
-    this.setState(prevState => ({ page: prevState.page + 1 }));
-  };
-
-  componentDidUpdate(_, prevState) {
-    const { query, page } = this.state;
-    if (prevState.query !== query || prevState.page !== page) {
-      this.setState({ isLoading: true });
-      fetchImages(query, page)
-        .then(data => {
-          this.setState(prev => ({
-            images: page === 1 ? data.hits : [...prev.images, ...data.hits],
-
-            totalHits:
+  useEffect(() => {
+    if (query) {
+      async function fetchData() {
+        try {
+          const searchImg = await fetchImages(query, page);
+          if (searchImg) {
+            setImages(prevState =>
+              page === 1 ? searchImg.hits : [...prevState, ...searchImg.hits]
+            );
+            setTotalHits(
               page === 1
-                ? data.totalHits - data.hits.length
-                : data.totalHits - [...prev.images, ...data.hits].length,
-          }));
-        })
-        .finally(() => {
-          this.setState({ isLoading: false });
-        });
+                ? searchImg.totalHits - searchImg.hits.length
+                : searchImg.totalHits - [...searchImg, ...searchImg.hits].length
+            );
+            setIsLoading(true);
+          }
+        } catch (error) {
+          setError(error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+      fetchData();
     }
-  }
+  }, [page, query]);
 
-  render() {
-    return (
-      <>
-        <SearchBar onSubmit={this.handleSubmitForm} />
-        <ImageGallery images={this.state.images} />
+  return (
+    <>
+      <SearchBar onSubmit={handleSubmitForm} />
+      {images.length > 0 && <ImageGallery images={images} />}
 
-        {!!this.state.totalHits &&
-          (!this.state.isLoading ? (
-            <LoadMore onLoadMore={this.handleLoadMore} />
-          ) : (
-            <Loader />
-          ))}
-      </>
-    );
-  }
+      {totalHits &&
+        (!isLoading ? <LoadMore onLoadMore={handleLoadMore} /> : <Loader />)}
+    </>
+  );
 }
